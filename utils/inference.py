@@ -25,7 +25,7 @@ def load_model():
 def predict_disease(audio_path):
     """Predict disease with confidence thresholding"""
     y,sr=librosa.load(audio_path, sr=None)
-    spectrogram=create_spectrogram(y,sr)
+    #spectrogram=create_spectrogram(y,sr)
 
     model=load_model()
     if model is None:

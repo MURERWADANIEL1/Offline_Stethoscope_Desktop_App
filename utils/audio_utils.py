@@ -3,6 +3,7 @@ import librosa
 import numpy as np
 import tensorflow as tf
 import cv2
+import matplotlib.pyplot as plt
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
 from sklearn.preprocessing import MinMaxScaler, LabelEncoder
@@ -32,10 +33,12 @@ def preprocess_spectrogram(spectrogram):
 
 def visualize_prediction_in_widget(widget, prediction, spectrogram, disease, confidence, label_encoder, y, sr):    
     """Visualize both spectrogram and class probabilities"""
+    #fig, ax=plt.subplots(figsize=(6, 4))
+    
     classes = label_encoder.classes_
     figure=Figure(figsize=(12, 4))
     canvas=FigureCanvas(figure)
-    widget.plot_area.addWidget(canvas)
+    #widget.plot_area.addWidget(canvas)
     
     ax1=figure.add_subplot(1, 3, 1)
     ax2=figure.add_subplot(1, 3, 2)
@@ -49,33 +52,27 @@ def visualize_prediction_in_widget(widget, prediction, spectrogram, disease, con
     ax1.set_ylabel("Amplitude")
         
     # Spectrogram plot
-    ax2.imshow(spectrogram[:,:,0], aspect='auto', origin='lower',cmap='viridis')
-    ax2.set_title(f"Predicted: {disease} ({confidence:.2%})")
+    if spectrogram is not None:
+        ax2.imshow(spectrogram[:,:,0], aspect='auto', origin='lower',cmap='viridis')
+        ax2.set_title(f"Predicted: {disease} ({confidence:.2%})")
+        ax2.set_xlabel("Time")
+        ax2.set_ylabel("Mel Frequency")
+    else:
+        ax2.set_title("Spectrogram not available")
 
     # Class probabilities plot       
     classes = label_encoder.classes_
-    probabilities = prediction[0]
+    probabilities = prediction[0] if prediction is not None else [0]*len(classes)
     ax3.barh(classes,probabilities, color='blue')
     ax3.set_title("Class Probabilitites")
     ax3.set_xlim([0, 1])
+    ax3.set_xlabel("Probability")
 
     figure.tight_layout()
     canvas.draw()
-    """"
-    colors = ['green' if prob == max(probabilities) else 'blue' for prob in probabilities]
-    bars = plt.barh(classes, probabilities, color=colors)
-    plt.xlim([0, 1])
-    plt.title('Class Probabilities')
-    plt.xlabel('Probability')  
+    #canvas=FigureCanvas(fig)
+    return canvas
     
-    # Annotate probabilities
-    for bar in bars:
-        width = bar.get_width()
-        plt.text(width + 0.01, bar.get_y() + bar.get_height()/2,
-                f'{width:.2%}', ha='left', va='center')    
-    plt.tight_layout()
-    plt.show()"""
-
 def save_prediction_results(audio_path, disease, confidence, spectrogram):
     """Save results with formatted filenames"""
     base_name = os.path.splitext(os.path.basename(audio_path))[0]

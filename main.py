@@ -5,7 +5,7 @@ import numpy as np
 from PyQt5.QtGui import QMovie
 from PyQt5.QtCore import QThread, pyqtSignal, QObject
 from PyQt5.QtWidgets import QApplication, QWidget, QPushButton, QLabel, QGroupBox, QHBoxLayout
-from PyQt5.QtWidgets import QFileDialog, QVBoxLayout, QMessageBox, QCheckBox
+from PyQt5.QtWidgets import QFileDialog, QVBoxLayout, QMessageBox, QCheckBox,QSizePolicy, QScrollArea
 from utils.inference import load_model, predict_disease, label_encoder
 from utils.audio_utils import create_spectrogram, preprocess_spectrogram, visualize_prediction_in_widget, save_prediction_results
 
@@ -25,25 +25,35 @@ class StethoscopeApp(QWidget):
         super().__init__()
         self.setWindowTitle("Offline AI Stethoscope")
         self.setGeometry(50, 50, 1200, 600)
-        layout = QVBoxLayout()
+        main_layout = QVBoxLayout()
         self.label = QLabel("Load an audio file to analyze")
         self.button = QPushButton("Load Audio")
-        self.result = QLabel("Prediction will appear here")
         self.button.clicked.connect(self.load_audio)
-        layout.addWidget(self.label)
-        layout.addWidget(self.button)
-        layout.addWidget(self.result)
-        self.plot_area=QVBoxLayout()
-        layout.addLayout(self.plot_area)
-        self.setLayout(layout)        
-        self.stack_checkbox=QCheckBox("Stack Views")
-        self.stack_checkbox.setChecked(False)
-        layout.addWidget(self.stack_checkbox)
+        self.result = QLabel("Prediction will appear here")
+
+        self.label.setSizePolicy(QSizePolicy.Expanding,QSizePolicy.Fixed)
+        self.button.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+        self.result.setSizePolicy(QSizePolicy.Expanding,QSizePolicy.Fixed)
+
+        main_layout.addWidget(self.label)
+        main_layout.addWidget(self.button)   
+        main_layout.addWidget(self.result)   
+
+        self.scroll_area=QScrollArea()  
+        self.scroll_area.setWidgetResizable(True)
+        self.plot_widget=QWidget()
+        self.plot_area=QVBoxLayout(self.plot_widget)
+        self.plot_widget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        self.scroll_area.setWidget(self.plot_widget)
+        main_layout.addWidget(self.scroll_area) 
+
+        self.setLayout(main_layout) 
+        
         self.spinner_label=QLabel()
         self.spinner=QMovie("assets/loading.gif")
         self.spinner_label.setMovie(self.spinner)
         self.spinner_label.hide()
-        layout.addWidget(self.spinner_label)
+        main_layout.addWidget(self.spinner_label)
 
     def load_audio(self):
         file_path, _ = QFileDialog.getOpenFileName(self, "Select Audio File", "", "Audio Files (*.wav)")
@@ -70,7 +80,7 @@ class StethoscopeApp(QWidget):
         vbox=QVBoxLayout()
 
         #create title with X buttons
-        title_bar=QHBoxlayout()
+        title_bar=QHBoxLayout()
         title_label=QLabel(title)
         close_button=QPushButton("X")
         close_button.setFixedSize(20,20)
@@ -78,6 +88,7 @@ class StethoscopeApp(QWidget):
         #close logic
         def close_view():
             group_box.setParent(None)
+            group_box.deleteLater()
 
         close_button.clicked.connect(close_view)
 
@@ -88,8 +99,8 @@ class StethoscopeApp(QWidget):
         #adding title bar and canvas
         vbox.addLayout(title_bar)
         vbox.addWidget(canvas)
-
         group_box.setLayout(vbox)
+        group_box.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         self.plot_area.addWidget(group_box)
 
     def on_processing_done(self, disease,confidence, spectrogram, prediction,y,sr, file_path):
@@ -104,7 +115,7 @@ class StethoscopeApp(QWidget):
             self.label.setText(f"Loaded: {os.path.basename(file_path)}")
             
             # Run prediction
-            disease, confidence, spectrogram, prediction = predict_disease(file_path)
+            disease, confidence, spectrogram, prediction, y, sr = predict_disease(file_path)
             # Show result
             if disease == "Unknown":
                 self.result.setText(f"Prediction: Low confidence, {disease} ({confidence:.2%})")
@@ -115,7 +126,10 @@ class StethoscopeApp(QWidget):
                                             
             # Optional: visualize results in a pop-up
             if spectrogram is not None and prediction is not None:
-                visualize_prediction_in_widget(self, prediction, spectrogram, disease, confidence, label_encoder, y, sr)
+                canvas=visualize_prediction_in_widget(self, prediction, spectrogram, disease, confidence, label_encoder, y, sr)
+                self.add_visualization(f"Spectrogram", canvas)
+
+                #visualize_prediction_in_widget(self, prediction, spectrogram, disease, confidence, label_encoder, y, sr)
                 reply=QMessageBox.question(self,
                                        "Save Spectogram?",
                                        "Do you want to save the spectrogram?",
@@ -125,15 +139,7 @@ class StethoscopeApp(QWidget):
                 if reply == QMessageBox.Yes:
                     # Save spectrogram and results
                     save_prediction_results(file_path, disease, confidence, spectrogram)
-                
-                if hasattr(self, "stack_checkbox") and self.stack_checkbox:
-                    if not self.stack_checkbox.isChecked():
-                        while self.plot_area.count():
-                            child=self.plot_area.takeAt(0)
-
-                        if child.widget():
-                            child.widget().deleteLater()
-                
+                               
 if __name__ == "__main__":
     app = QApplication(sys.argv)
     window = StethoscopeApp()
