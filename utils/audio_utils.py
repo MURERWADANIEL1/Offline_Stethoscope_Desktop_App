@@ -35,7 +35,7 @@ def visualize_prediction_in_widget(widget, prediction, spectrogram, disease, con
     classes = label_encoder.classes_
     figure=Figure(figsize=(12, 4))
     canvas=FigureCanvas(figure)
-    widget.layout().addWidget(canvas)
+    widget.plot_area.addWidget(canvas)
     
     ax1=figure.add_subplot(1, 3, 1)
     ax2=figure.add_subplot(1, 3, 2)
