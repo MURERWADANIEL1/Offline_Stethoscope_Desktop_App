@@ -30,6 +30,41 @@ def preprocess_spectrogram(spectrogram):
     spectrogram_scaled = scaler.fit_transform(spectrogram_flat)
     spectrogram_normalized = spectrogram_scaled.reshape(original_shape)
     return spectrogram_normalized
+def create_waveform_canvas(y, sr, disease, confidence):
+    """Return a FigureCanvas with waveform and prediction info."""
+    figure = Figure(figsize=(8, 3))
+    canvas = FigureCanvas(figure)
+    ax = figure.add_subplot(111)
+    time = np.linspace(0, len(y) / sr, num=len(y))
+    ax.plot(time, y)
+    ax.set_title(f"Waveform - Prediction: {disease} ({confidence:.2f}%)")
+    ax.set_xlabel("Time (s)")
+    ax.set_ylabel("Amplitude")
+    figure.tight_layout()
+    canvas.draw()
+    return canvas
+def create_spectrogram_canvas(spectrogram, disease, confidence):
+    figure=Figure(figsize=(8, 3))
+    canvas=FigureCanvas(figure)
+    ax=figure.add_subplot(111)
+
+    if spectrogram is not None:
+        img=ax.imshow(spectrogram[:,:,0], aspect='auto', origin='lower', cmap='viridis')
+        figure.colorbar(img, ax=ax,format="%+2.0f dB")
+        ax.set_title(f"Spectrogram - Prediction: {disease} ({confidence:.2f}%)")
+        ax.set_xlabel("Time")
+        ax.set_ylabel("Mel Frequency")
+    else:
+        ax.set_title("Spectrogram not available")
+        ax.text(0.5, 0.5, "No Spectrogram Data", horizontalalignment='center', verticalalignment='center')
+
+                
+    figure.tight_layout()
+    canvas.draw()
+    return canvas
+
+
+
 
 def visualize_prediction_in_widget(widget, prediction, spectrogram, disease, confidence, label_encoder, y, sr):    
     """Visualize both spectrogram and class probabilities"""
