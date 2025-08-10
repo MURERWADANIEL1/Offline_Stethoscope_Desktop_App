@@ -5,9 +5,9 @@ import numpy as np
 from PyQt5.QtGui import QMovie
 from PyQt5.QtCore import QThread, pyqtSignal, QObject
 from PyQt5.QtWidgets import QApplication, QWidget, QPushButton, QLabel, QGroupBox, QHBoxLayout
-from PyQt5.QtWidgets import QFileDialog, QVBoxLayout, QMessageBox, QCheckBox,QSizePolicy, QScrollArea
+from PyQt5.QtWidgets import QFileDialog, QInputDialog, QFileDialog, QVBoxLayout, QMessageBox, QCheckBox,QSizePolicy, QScrollArea
 from utils.inference import load_model, predict_disease, label_encoder
-from utils.audio_utils import create_spectrogram, preprocess_spectrogram, visualize_prediction_in_widget, save_prediction_results
+from utils.audio_utils import create_spectrogram, create_spectrogram_canvas, create_waveform_canvas, preprocess_spectrogram, visualize_prediction_in_widget, save_prediction_results
 
 class Worker(QObject):
     finished=pyqtSignal(str, float, object, object, object, int, str)
@@ -25,6 +25,7 @@ class StethoscopeApp(QWidget):
         super().__init__()
         self.setWindowTitle("Offline AI Stethoscope")
         self.setGeometry(50, 50, 1200, 600)
+        self.setStyleSheet("background-color: #eafaf1;")
         main_layout = QVBoxLayout()
         self.label = QLabel("Load an audio file to analyze")
         self.button = QPushButton("Load Audio")
@@ -55,11 +56,16 @@ class StethoscopeApp(QWidget):
         self.spinner_label.hide()
         main_layout.addWidget(self.spinner_label)
 
+        self.switch_view_button = QPushButton("Switch View")
+        self.switch_view_button.setEnabled(False)
+        self.switch_view_button.clicked.connect(self.switch_view)
+        main_layout.addWidget(self.switch_view_button)
+
     def load_audio(self):
         file_path, _ = QFileDialog.getOpenFileName(self, "Select Audio File", "", "Audio Files (*.wav)")
-
-        y,sr=librosa.load(file_path,sr=None)
-        spectrogram=create_spectrogram(file_path)
+        if not file_path:
+            return #Use cancelled, nothing to do
+    
 
         self.spinner_label.show()
         self.spinner.start()
@@ -75,25 +81,60 @@ class StethoscopeApp(QWidget):
         self.worker.finished.connect(self.thread.quit)
         self.thread.start()
 
-    def add_visualization(self, title, canvas):
+    def add_visualization(self, title, canvas, file_path=None, extra_data=None):
         group_box=QGroupBox()
         vbox=QVBoxLayout()
 
         #create title with X buttons
         title_bar=QHBoxLayout()
-        title_label=QLabel(title)
+        #title_label=QLabel(title)
+        display_text=title
+        if file_path:
+            display_text = f"{title} - {os.path.basename(file_path)}"
+        title_label=QLabel(display_text)
+
+        save_button=QPushButton("Save")
+        save_button.setFixedSize(60, 20)
+        save_button.setToolTip("Save this Visualization")
+
         close_button=QPushButton("X")
         close_button.setFixedSize(20,20)
+        close_button.setToolTip("Close this Visualization")
 
         #close logic
         def close_view():
             group_box.setParent(None)
             group_box.deleteLater()
 
+        def save_view():
+            if extra_data:
+                disease=extra_data.get("disease", "Unknown")
+                confidence=extra_data.get("confidence", 0.0)
+                original_name=os.path.splitext(os.path.basename(file_path))[0]
+                filename=f"{original_name}_{disease}_{confidence:.2f}.npy"
+            
+            else:
+                filename=f"{title.lower().replace(' ', '_')}.npy"
+            save_path, _ =QFileDialog.getSaveFileName(
+                self,
+                f"Save{title}",
+                filename, # Default filename
+                "Numpy Files (*.npy);;All Files (*)" # Filter
+            ) 
+            if save_path:
+                spectrogram=extra_data.get("spectrogram") if extra_data else None
+                if spectrogram is not None:
+                    np.save(save_path, spectrogram)
+                    QMessageBox.information(self, "Saved", f"Spectrogram saved as:\n{save_path}")
+            else:
+                QMessageBox.warning(self, "Error", "Spectrogram not Saved")
+
         close_button.clicked.connect(close_view)
+        save_button.clicked.connect(save_view)
 
         title_bar.addWidget(title_label)
         title_bar.addStretch()
+        title_bar.addWidget(save_button)
         title_bar.addWidget(close_button)
 
         #adding title bar and canvas
@@ -104,42 +145,91 @@ class StethoscopeApp(QWidget):
         self.plot_area.addWidget(group_box)
 
     def on_processing_done(self, disease,confidence, spectrogram, prediction,y,sr, file_path):
+        
         self.spinner.stop()
         self.spinner_label.hide()
         self.button.setEnabled(True)
-        self.result.setText(f"Prediction: {disease} ({confidence:.2%})")
-        visualize_prediction_in_widget(self, prediction, spectrogram, disease, confidence, label_encoder, y, sr)
 
-    
+        self.last_processed={
+            "disease": disease,
+            "confidence": confidence,
+            "spectrogram": spectrogram,
+            "prediction": prediction,
+            "y": y,
+            "sr": sr,
+            "file_path": file_path
+        }   
+
+        if disease is None:
+            self.result.setText("Could not process the audio file.")
+            return
+        self.result.setText(f"Prediction: {disease} ({confidence:.2%})")
+
         if file_path:  # Check if a file was selected
             self.label.setText(f"Loaded: {os.path.basename(file_path)}")
+            view, ok =QInputDialog.getItem(
+                self,
+                "Select View",
+                "Choose which view to display:",
+                ["Waveform", "Spectrogram"],
+                1, 
+                False
+            )
+            if not ok:
+                return #user cancelled
             
-            # Run prediction
-            disease, confidence, spectrogram, prediction, y, sr = predict_disease(file_path)
-            # Show result
-            if disease == "Unknown":
-                self.result.setText(f"Prediction: Low confidence, {disease} ({confidence:.2%})")
-            elif disease == "Error":
-                self.result.setText("Error processing audio")
+            if view == "Waveform":
+                canvas=create_waveform_canvas(y, sr, disease, confidence*100)
+                
             else:
-                self.result.setText(f"Prediction: {disease} ({confidence:.2%})")
-                                            
+                canvas=create_spectrogram_canvas(spectrogram, disease, confidence*100)
+                      
             # Optional: visualize results in a pop-up
-            if spectrogram is not None and prediction is not None:
-                canvas=visualize_prediction_in_widget(self, prediction, spectrogram, disease, confidence, label_encoder, y, sr)
-                self.add_visualization(f"Spectrogram", canvas)
+            if canvas:
+                self.add_visualization(
+                    view,
+                    canvas,
+                    file_path=file_path,
+                    extra_data={
+                        "disease": disease, # for filename
+                        "confidence": confidence, # for filename
+                        "spectrogram": spectrogram                        
+                    }
+                )  
 
-                #visualize_prediction_in_widget(self, prediction, spectrogram, disease, confidence, label_encoder, y, sr)
-                reply=QMessageBox.question(self,
-                                       "Save Spectogram?",
-                                       "Do you want to save the spectrogram?",
-                                       QMessageBox.Yes|QMessageBox.No,
-                                       QMessageBox.No
-                                        )
-                if reply == QMessageBox.Yes:
-                    # Save spectrogram and results
-                    save_prediction_results(file_path, disease, confidence, spectrogram)
-                               
+            self.switch_view_button.setEnabled(True)    
+    def switch_view(self):
+        if not hasattr(self, "last_processed"):
+            return
+        data=self.last_processed
+        view, ok=QInputDialog.getItem(
+            self,
+            "Switch View",
+            "Choose which view to display:",
+            ["Waveform", "Spectrogram"],
+            1,
+            False                
+        )
+        if not ok:
+            return
+                
+        if view == "Waveform":
+            canvas=create_waveform_canvas(data["y"], data["sr"], data["disease"], data["confidence"]*100)
+
+        else:
+            canvas= create_spectrogram_canvas(data["spectrogram"], data["disease"], data["confidence"]*100)
+
+        self.add_visualization(
+            view,
+            canvas,
+            file_path=data["file_path"],
+            extra_data={
+                "disease": data["disease"],
+                "confidence": data["confidence"],
+                "spectrogram":data["spectrogram"]
+            }
+        )
+                    
 if __name__ == "__main__":
     app = QApplication(sys.argv)
     window = StethoscopeApp()
