@@ -14,6 +14,7 @@ model = None
 def load_model():
     global model
     if model is None:
+        #return "Error", 0.0, None, None
         try:
             model = tf.keras.models.load_model("model/respiratory_cnn_model.h5")
             print("Model loaded successfully")
@@ -24,27 +25,36 @@ def load_model():
 
 def predict_disease(audio_path):
     """Predict disease with confidence thresholding"""
-    y,sr=librosa.load(audio_path, sr=None)
-    #spectrogram=create_spectrogram(y,sr)
-        return "Error", 0.0, None, None
-    model=load_model()
-    spectrogram = create_spectrogram(audio_path)
-    y, sr = librosa.load(audio_path, sr=None)
-    
-    spectrogram = create_spectrogram(y, sr)
-    if spectrogram is None:
-        return None, None, None, None, y, sr
-    
-    spectrogram_processed = preprocess_spectrogram(spectrogram)
-    spectrogram_input = np.expand_dims(spectrogram_processed, axis=0)
-    
-    prediction = model.predict(spectrogram_input, verbose=0)
-    predicted_class = np.argmax(prediction, axis=1)
-    confidence = np.max(prediction)
-    
-    # Apply confidence threshold
-    if confidence < CONFIDENCE_THRESHOLD:
-        return "Unknown", confidence, spectrogram, prediction, y, sr
-    
-    predicted_disease = label_encoder.inverse_transform(predicted_class)[0]
-    return predicted_disease, confidence, spectrogram, prediction,y,sr
+    model = load_model()
+    if model is None:
+        # If the model failed to load, we can't proceed.
+        return "Error: Model not loaded", 0.0, None, None, None, None
+
+    try:
+        # 1. Load audio file ONCE
+        y, sr = librosa.load(audio_path, sr=None)
+
+        # 2. Create spectrogram ONCE
+        spectrogram = create_spectrogram(y, sr=sr)
+        if spectrogram is None:
+            # Error already printed by create_spectrogram
+            return "Error: Spectrogram failed", 0.0, None, None, y, sr
+
+        # 3. Preprocess and predict
+        spectrogram_processed = preprocess_spectrogram(spectrogram)
+        spectrogram_input = np.expand_dims(spectrogram_processed, axis=0)
+        prediction = model.predict(spectrogram_input, verbose=0)
+        predicted_class_idx = np.argmax(prediction, axis=1)
+        confidence = float(np.max(prediction))
+
+        # 4. Apply confidence threshold and return
+        if confidence < CONFIDENCE_THRESHOLD:
+            return "Unknown", confidence, spectrogram, prediction, y, sr
+
+        predicted_disease = label_encoder.inverse_transform(predicted_class_idx)[0]
+        return predicted_disease, confidence, spectrogram, prediction, y, sr
+
+    except Exception as e:
+        print(f"An error occurred during prediction: {e}")
+        # Ensure we return the correct number and types of values
+        return "Error", 0.0, None, None, None, None

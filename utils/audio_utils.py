@@ -10,16 +10,24 @@ from sklearn.preprocessing import MinMaxScaler, LabelEncoder
 import librosa.display
 from datetime import datetime
 
-def create_spectrogram(audio_path, target_shape=(128, 128)):
-    """Create mel spectrogram matching training process"""
+def create_spectrogram(audio_input, sr=None, target_shape=(128, 128)):
+    """Create mel spectrogram from an audio file path or raw audio data."""
     try:
-        y, sr = librosa.load(audio_path, sr=None)
+        if isinstance(audio_input, str):
+            y, sr = librosa.load(audio_input, sr=None)
+        elif isinstance(audio_input, np.ndarray):
+            y = audio_input
+            if sr is None:
+                raise ValueError("Sample rate 'sr' must be provided for raw audio data.")
+        else:
+            raise TypeError(f"audio_input must be a file path or numpy array, not {type(audio_input)}")
+
         s = librosa.feature.melspectrogram(y=y, sr=sr)
         s_db = librosa.amplitude_to_db(s, ref=np.max)
         s_resized = cv2.resize(s_db, target_shape)
         return np.expand_dims(s_resized, axis=-1)
     except Exception as e:
-        print(f"Error creating spectrogram: {str(e)}")
+        print(f"Error creating spectrogram: {e}")
         return None
 
 def preprocess_spectrogram(spectrogram):
@@ -119,5 +127,3 @@ def save_prediction_results(audio_path, disease, confidence, spectrogram):
     spectrogram_path = os.path.join(output_dir, spectrogram_filename)
     np.save(spectrogram_path, spectrogram)
     print(f"\nSaved spectrogram as: {spectrogram_filename}")
-
-
