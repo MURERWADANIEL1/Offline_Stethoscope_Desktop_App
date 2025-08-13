@@ -1,6 +1,7 @@
 # Offline AI Stethoscope
 
 This project is a desktop application that uses a deep learning model to analyze respiratory audio recordings and predict potential respiratory conditions. It serves as a software interface for an AI-powered stethoscope, allowing for offline analysis of `.wav` audio files.
+This software build is inspired by similar work done previously on Autodetection of common Cardiopulmonary conditions using Deep Learning Model. The work can be accessed at Github using [Github-Link](https://github.com/MURERWADANIEL1/Final_Year_Project)
 
 The application is built with Python, using PyQt5 for the graphical user interface and TensorFlow/Keras for the machine learning model inference.
 
@@ -26,7 +27,7 @@ The application is built with Python, using PyQt5 for the graphical user interfa
 
 1.  **Clone the repository:**
     ```bash
-    git clone <https://github.com/MURERWADANIEL1/Offline_Stethoscope_Desktop_App>
+    git clone https://github.com/MURERWADANIEL1/Offline_Stethoscope_Desktop_App
     cd offline_stethoscope
     ```
 
