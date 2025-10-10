@@ -1,0 +1,14 @@
+# Python artifacts
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Virtual Environment
+myenv/
+
+# OS-generated files
+.DS_Store
+
+# Application assets (icons, images, etc.)
+assets/

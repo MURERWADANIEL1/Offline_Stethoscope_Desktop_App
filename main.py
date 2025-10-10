@@ -2,12 +2,15 @@ import sys
 import os
 import librosa
 import numpy as np
-from PyQt5.QtGui import QMovie
-from PyQt5.QtCore import QThread, pyqtSignal, QObject
+from PyQt5.QtGui import QMovie, QIcon, QFont
+from PyQt5.QtCore import QThread, pyqtSignal, QObject, QSize, Qt
 from PyQt5.QtWidgets import QApplication, QWidget, QPushButton, QLabel, QGroupBox, QHBoxLayout
 from PyQt5.QtWidgets import QFileDialog, QInputDialog, QFileDialog, QVBoxLayout, QMessageBox, QCheckBox,QSizePolicy, QScrollArea
 from utils.inference import load_model, predict_disease, label_encoder
 from utils.audio_utils import create_spectrogram, create_spectrogram_canvas, create_waveform_canvas, preprocess_spectrogram, visualize_prediction_in_widget, save_prediction_results
+
+# Define the base path for the application to resolve asset paths correctly
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 class Worker(QObject):
     finished=pyqtSignal(str, float, object, object, object, int, str)
@@ -23,10 +26,27 @@ class Worker(QObject):
 class StethoscopeApp(QWidget):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Offline AI Stethoscope")
+        self.setWindowTitle("Offline Stethoscope Desktop App")
+        # Set the application icon using an absolute path with a check
+        icon_path = os.path.join(BASE_DIR, "assets", "stethoscope_icon.png")
+        app_icon = QIcon(icon_path)
+        if app_icon.isNull():
+            print(f"Warning: Could not load application icon from path: {icon_path}")
+        self.setWindowIcon(app_icon)
+
         self.setGeometry(50, 50, 1200, 600)
         self.setStyleSheet("background-color: #eafaf1;")
         main_layout = QVBoxLayout()
+
+        # Add a prominent heading inside the app window
+        heading_label = QLabel("Offline Stethoscope Desktop App")
+        font = QFont()
+        font.setPointSize(20)
+        font.setBold(True)
+        heading_label.setFont(font)
+        heading_label.setAlignment(Qt.AlignCenter)
+        main_layout.addWidget(heading_label)
+
         self.label = QLabel("Load an audio file to analyze")
         self.button = QPushButton("Load Audio")
         self.button.clicked.connect(self.load_audio)
@@ -51,7 +71,8 @@ class StethoscopeApp(QWidget):
         self.setLayout(main_layout) 
         
         self.spinner_label=QLabel()
-        self.spinner=QMovie("assets/loading.gif")
+        spinner_path = os.path.join(BASE_DIR, "assets", "loading.gif")
+        self.spinner=QMovie(spinner_path)
         self.spinner_label.setMovie(self.spinner)
         self.spinner_label.hide()
         main_layout.addWidget(self.spinner_label)
@@ -60,7 +81,31 @@ class StethoscopeApp(QWidget):
         self.switch_view_button.setEnabled(False)
         self.switch_view_button.clicked.connect(self.switch_view)
         main_layout.addWidget(self.switch_view_button)
-
+        
+        # Create a horizontal layout for control buttons at the bottom
+        control_buttons_layout = QHBoxLayout()
+        
+        # Add Minimize Button
+        self.minimize_button = QPushButton("Minimize")
+        self.minimize_button.clicked.connect(self.showMinimized)
+        control_buttons_layout.addWidget(self.minimize_button)
+        
+        # Add Maximize Button
+        self.maximize_button = QPushButton("Maximize")
+        self.maximize_button.clicked.connect(self.showMaximized)
+        control_buttons_layout.addWidget(self.maximize_button)
+        
+        # Add Restore Button to return to normal size
+        self.restore_button = QPushButton("Restore Down")
+        self.restore_button.clicked.connect(self.showNormal) # Restores from maximized/minimized to normal
+        control_buttons_layout.addWidget(self.restore_button)
+        
+        # Add Exit Button
+        self.exit_button = QPushButton("Exit Application")
+        self.exit_button.clicked.connect(self.close) # self.close is inherited from QWidget
+        control_buttons_layout.addWidget(self.exit_button)
+        
+        main_layout.addLayout(control_buttons_layout)
     def load_audio(self):
         file_path, _ = QFileDialog.getOpenFileName(self, "Select Audio File", "", "Audio Files (*.wav)")
         if not file_path:
@@ -97,9 +142,12 @@ class StethoscopeApp(QWidget):
         save_button.setFixedSize(60, 20)
         save_button.setToolTip("Save this Visualization")
 
-        close_button=QPushButton("X")
-        close_button.setFixedSize(20,20)
+        close_button=QPushButton()
         close_button.setToolTip("Close this Visualization")
+        # Use a standard icon for better cross-platform compatibility
+        style = self.style()
+        icon = style.standardIcon(style.StandardPixmap.SP_TitleBarCloseButton)
+        close_button.setIcon(icon)
 
         #close logic
         def close_view():
@@ -232,6 +280,11 @@ class StethoscopeApp(QWidget):
                     
 if __name__ == "__main__":
     app = QApplication(sys.argv)
+
+    # Set the application-level icon. This helps with desktop integration (e.g., .desktop files)
+    app_icon_path = os.path.join(BASE_DIR, "assets", "stethoscope_icon.png")
+    app.setWindowIcon(QIcon(app_icon_path))
+
     window = StethoscopeApp()
     window.show()
     sys.exit(app.exec())

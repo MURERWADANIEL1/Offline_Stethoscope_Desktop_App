@@ -1,8 +1,12 @@
+import os
 import numpy as np
 import librosa
 import tensorflow as tf
 from sklearn.preprocessing import LabelEncoder
 from utils.audio_utils import create_spectrogram, preprocess_spectrogram
+
+# Define the base path to locate the model file reliably
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__))) # Goes up one level from utils
 
 disease_classes = ["URTI", "Healthy", "COPD", "Bronchiectasis", "Pneumonia", "Bronchiolitis"]
 label_encoder = LabelEncoder()
@@ -16,7 +20,8 @@ def load_model():
     if model is None:
         #return "Error", 0.0, None, None
         try:
-            model = tf.keras.models.load_model("model/respiratory_cnn_model.h5")
+            model_path = os.path.join(BASE_DIR, "model", "respiratory_cnn_model.h5")
+            model = tf.keras.models.load_model(model_path)
             print("Model loaded successfully")
         except Exception as e:
             print(f" Error loading model: {e}")
