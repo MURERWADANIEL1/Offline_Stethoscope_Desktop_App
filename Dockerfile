@@ -1,4 +1,5 @@
 # syntax=docker/dockerfile:1
+## syntax=docker/dockerfile:1
 
 ARG PYTHON_VERSION=3.12.9
 FROM python:${PYTHON_VERSION}-slim AS base
@@ -23,8 +24,9 @@ RUN adduser \
 
 # Copy and install Python dependencies
 COPY requirements.txt .
-RUN python -m pip install --no-cache-dir -r requirements.txt
 
+RUN python -m pip install --upgrade pip && \
+    python -m pip install --no-cache-dir --timeout=120 -r requirements.txt
 # Copy all project files
 COPY . .
 
